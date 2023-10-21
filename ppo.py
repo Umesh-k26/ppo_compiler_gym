@@ -39,6 +39,23 @@ class RolloutBuffer:
         self.logprobs.append(logprob)
         self.is_terminals.append(is_terminal)
 
+class Inference():
+  def __init__(self) -> None:
+      self.env = llvm_wrapper(benchmarks, max_episode_steps=1, steps_in_observation=False)
+      self.model = policy_critic_network(env.observation_space.shape[0], env.action_space.n)
+      self.model.load_state_dict(torch.load("models/default.model"))
+      
+  def evaluate(self):
+      done = False
+      obs = env.reset()
+      action_seq = []
+      while not done:
+        action = self.model.act(torch.tensor(obs).float())[0].item()
+        obs, reward, done, _ = env.step(action)
+        action_seq.append(action)
+      print(action_seq)
+      return action_seq
+      
 
 class Evaluation:
 
@@ -154,24 +171,25 @@ class PPO:
         reward_progress = []
 
         print("Training started.")
-        while (training_time is None) or (time.time() - start < training_time):
-            self.collect_trajectories(self.trajectories_until_update)
-            self.update()
+        # while (training_time is None) or (time.time() - start < training_time):
+        self.collect_trajectories(self.trajectories_until_update)
+        self.update()
 
-            if log_progress and (time.time() - last_checkpoint > progress_log_rate):
-                torch.save(self.actor_critic.state_dict(), "models/{0}.model".format(self.name).format(self.name))
-                geo_maxima, geo_averages = Evaluation.evaluate(benchmarks, self.name, print_progress=False,
-                                                               additional_steps_for_max=0, max_trials_per_benchmark=10,
-                                                               max_time_per_benchmark=10)  # just for tracking progress
-                reward_progress.append(geo_averages)
-                print("Geo of averages: {0}".format(reward_progress[-1]))
-                plt.clf()
-                plt.plot(reward_progress)
-                plt.savefig("models/{0}.png".format(self.name))
+        # if log_progress and (time.time() - last_checkpoint > progress_log_rate):
+        torch.save(self.actor_critic.state_dict(), "models/{0}.model".format(self.name).format(self.name))
+        exit(0)
+        geo_maxima, geo_averages = Evaluation.evaluate(benchmarks, self.name, print_progress=False,
+                                                        additional_steps_for_max=0, max_trials_per_benchmark=10,
+                                                        max_time_per_benchmark=10)  # just for tracking progress
+        reward_progress.append(geo_averages)
+        print("Geo of averages: {0}".format(reward_progress[-1]))
+        plt.clf()
+        plt.plot(reward_progress)
+        plt.savefig("models/{0}.png".format(self.name))
 
-                last_checkpoint = time.time()
+        last_checkpoint = time.time()
 
-            self.env.switch_benchmark()
+        self.env.switch_benchmark()
 
         if log_progress:
             plt.clf()
@@ -236,15 +254,15 @@ class PPO:
         self.buffer.clear()
 
 
-benchmarks = []
-f = open("cbench-v1.txt", "r")
-for line in f:
-    benchmarks.append(line.strip())
-f.close()
+benchmarks = ["/home/cs20btech11024/tmp/ld-data/tsvc_train/generated_final/llfiles/meta_ssa/tsvc_-1.ll"]
+# f = open("cbench-v1.txt", "r")
+# for line in f:
+#     benchmarks.append(line.strip())
+# f.close()
 
-env = llvm_wrapper(benchmarks, max_episode_steps=200, steps_in_observation=True)
+env = llvm_wrapper(benchmarks, max_episode_steps=2, steps_in_observation=True)
 
 ppo_training = PPO(env)
-ppo_training.train(log_progress=True, training_time=60 * 60 * 1000, progress_log_rate=60 * 30)
-Evaluation.evaluate(benchmarks, "default", additional_steps_for_max=500, max_trials_per_benchmark=100000,
-                    max_time_per_benchmark=60 * 1)
+# ppo_training.train(log_progress=True, training_time=60  , progress_log_rate=1)
+# Evaluation.evaluate(benchmarks, "default", additional_steps_for_max=500, max_trials_per_benchmark=1,
+#                     max_time_per_benchmark=60 * 1)

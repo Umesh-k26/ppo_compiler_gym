@@ -1,7 +1,6 @@
 import gym
 import numpy as np
 import random
-from compiler_gym.envs.llvm import make_benchmark
 
 
 class llvm_wrapper(gym.Env):
@@ -14,13 +13,13 @@ class llvm_wrapper(gym.Env):
 
     def __init__(self, benchmarks, max_episode_steps=None, steps_in_observation=False, patience=None,
                  allowed_actions=None):
-        self.env = gym.make("llvm-autophase-ic-v0", benchmark="cbench-v1/{0}".format(benchmarks[0]))
+        self.env = gym.make("llvm-ir2vec_flowaware-ic-v0", benchmark="{0}".format(benchmarks[0]))
         self.benchmarks = benchmarks
 
         # patience
         self.patience = patience
         self.fifo = []
-
+        self.n_steps = 0
         # Observation space
         self.limited_time = max_episode_steps is not None
         if self.limited_time:
@@ -56,9 +55,16 @@ class llvm_wrapper(gym.Env):
         idx = random.randint(0, -1 + len(self.benchmarks))
         print("Switched to {0}".format(self.benchmarks[idx]))
         self.env.close()
-        self.env = gym.make("llvm-autophase-ic-v0", benchmark="cbench-v1/{0}".format(self.benchmarks[idx]))
+        self.env = gym.make("llvm-ir2vec_flowaware-ic-v0", benchmark="cbench-v1/{0}".format(self.benchmarks[idx]))
 
     def step(self, action):
+        obs, rew, done, _ = self.env.step(action)
+        self.n_steps += 1
+        if self.n_steps == 15:
+            done = True
+        return obs, rew, done, _
+          
+        
         # If necessary, map action
         if self.limited_action_set:
             action = self.action_mapping[action]
@@ -89,9 +95,10 @@ class llvm_wrapper(gym.Env):
 
     def reset(self):
         self.fifo = []
+        self.n_steps = 0
         if self.limited_time:
             self.elapsed_steps = 0
-
+        return self.env.reset()
         if self.steps_in_observation:
             return np.concatenate((self.env.reset(), np.array([self.max_steps])))
         else:
