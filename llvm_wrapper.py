@@ -12,14 +12,18 @@ class llvm_wrapper(gym.Env):
     allowed_actions: If specified: Subset of action space given as integers.
     """
 
-    def __init__(self, benchmarks, max_episode_steps=None, steps_in_observation=False, patience=None,
+    def __init__(self, benchmarks, benchmark_file, max_episode_steps=None, steps_in_observation=False, patience=None,
                  allowed_actions=None):
-        self.env = gym.make("llvm-autophase-ic-v0", benchmark="cbench-v1/{0}".format(benchmarks[0]))
+        self.env = gym.make("llvm-ir2vec_symbolic-ic-v0")
+        benchmark = make_benchmark(benchmark_file)
+        self.env.reset(benchmark=benchmark)
+        
         self.benchmarks = benchmarks
 
         # patience
         self.patience = patience
         self.fifo = []
+        self.n_steps = 0
 
         # Observation space
         self.limited_time = max_episode_steps is not None
@@ -29,8 +33,8 @@ class llvm_wrapper(gym.Env):
             self.steps_in_observation = steps_in_observation
             if steps_in_observation:
                 self.observation_space = gym.spaces.Box(0, 9223372036854775807,
-                                                        np.shape(list(range(1 + self.env.observation_space.shape[0]))),
-                                                        dtype=np.int64)
+                                                        np.shape(list(range(self.env.observation_space.shape[0]))),
+                                                        dtype=np.float32)
             else:
                 self.observation_space = self.env.observation_space
 
@@ -56,9 +60,15 @@ class llvm_wrapper(gym.Env):
         idx = random.randint(0, -1 + len(self.benchmarks))
         print("Switched to {0}".format(self.benchmarks[idx]))
         self.env.close()
-        self.env = gym.make("llvm-autophase-ic-v0", benchmark="cbench-v1/{0}".format(self.benchmarks[idx]))
+        self.env = gym.make("llvm-ir2vec_symbolic-ic-v0", benchmark="cbench-v1/{0}".format(self.benchmarks[idx]))
 
     def step(self, action):
+        obs, rew, done, info = self.env.step(action)
+        self.n_steps += 1
+        if self.n_steps == 15:
+            done = True
+        return obs, rew, done, info
+          
         # If necessary, map action
         if self.limited_action_set:
             action = self.action_mapping[action]
@@ -81,7 +91,7 @@ class llvm_wrapper(gym.Env):
             self.elapsed_steps += 1
             if self.elapsed_steps >= self.max_steps:
                 done = True
-
+        return observation, reward, done, info
         if self.steps_in_observation:
             return np.concatenate((observation, np.array([self.max_steps - self.elapsed_steps]))), reward, done, info
         else:
@@ -89,9 +99,10 @@ class llvm_wrapper(gym.Env):
 
     def reset(self):
         self.fifo = []
+        self.n_steps = 0
         if self.limited_time:
             self.elapsed_steps = 0
-
+        return self.env.reset()
         if self.steps_in_observation:
             return np.concatenate((self.env.reset(), np.array([self.max_steps])))
         else:

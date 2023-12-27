@@ -10,7 +10,9 @@ class policy_critic_network(nn.Module):
 
         self.input_dim = nom_observations
         self.output_dim = nom_actions
-
+        
+        print("self.input_dim: ", self.input_dim)
+        self.action = 20
         self.features = nn.Sequential(
             nn.Linear(nom_observations, 128),
             nn.Tanh(),
@@ -57,7 +59,17 @@ class policy_critic_network(nn.Module):
 
     def act(self, x):
         action_probs = self.get_action_probs(x)
+        # print("action_probs: ", action_probs)
         dist = Categorical(action_probs)
-        chosen_action = dist.sample()
+        action_max = torch.argmax(action_probs)
+        action_max = torch.tensor(self.action)
+        self.action += 1
+        # print("action_max: ", action_max)
+        
+        # chosen_action = dist.sample()
+        # print("chosen_action: ", chosen_action)
+        chosen_action = action_max
         logprob_action = dist.log_prob(chosen_action)
+        # print("logprob_action: ", logprob_action)
+        # exit(0)
         return chosen_action.detach(), logprob_action.detach()

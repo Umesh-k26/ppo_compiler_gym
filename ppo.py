@@ -41,12 +41,28 @@ class RolloutBuffer:
 
 
 class Evaluation:
-
+    @staticmethod
     def geom_mean(self, input_list: List):
         output_list = np.array(input_list)
         return output_list.prod() ** (1 / len(output_list))
 
-    def evaluate(self, benchmarks, model_name, print_progress=True, additional_steps_for_max=0,
+    @staticmethod
+    def eval(benchmark, model_name="default"):
+        env = llvm_wrapper([], benchmark, max_episode_steps=200, steps_in_observation=False)
+        model = policy_critic_network(env.observation_space.shape[0], env.action_space.n)
+        model.load_state_dict(torch.load("models/{0}.model".format(model_name)))
+
+        obs = env.reset()
+        done = False
+        while not done:
+            action = model.act(torch.tensor(obs).float())[0].item()
+            print("action: ", action)
+            obs, reward, done, _ = env.step(action)
+#        print("Benchmark: ", env.env.benchmark)
+        env.close()
+        
+    @staticmethod
+    def evaluate(benchmarks, model_name, print_progress=True, additional_steps_for_max=0,
                  max_trials_per_benchmark=10,
                  max_time_per_benchmark=10 * 1):
 
@@ -77,10 +93,18 @@ class Evaluation:
                 cum_rewards = []
                 while not done:
                     action = model.act(torch.tensor(obs).float())[0].item()
+                    print("Embedding: ", str(obs))
+                    print("action: ", action)
                     action_sequence.append(action)
                     obs, reward, done, _ = env.step(action)
                     cum_rewards.append(reward + (cum_rewards[-1] if len(cum_rewards) > 0 else 0))
-
+                print("Action_seq: ", action_sequence)
+                # print action_sequence
+                print("Trial {0} of {1} for {2}.".format(trials, max_trials_per_benchmark, benchmark))
+                print("Max reward: {0}".format(max(cum_rewards))
+                if max(cum_rewards) > max_reward else "No improvement.")
+                
+                
                 if max(cum_rewards) > max_reward:
                     max_reward = max(cum_rewards)
                     best_action_sequence = action_sequence
@@ -89,6 +113,7 @@ class Evaluation:
             obs = long_env.reset()
             done = False
             cum_of_max = []
+            print("Best action sequence: {0}".format(best_action_sequence))
             for action in best_action_sequence:
                 _, reward, done, _ = long_env.step(action)
                 cum_of_max.append(reward + (cum_of_max[-1] if len(cum_of_max) > 0 else 0))
@@ -158,18 +183,18 @@ class PPO:
             self.collect_trajectories(self.trajectories_until_update)
             self.update()
 
-            if log_progress and (time.time() - last_checkpoint > progress_log_rate):
-                torch.save(self.actor_critic.state_dict(), "models/{0}.model".format(self.name).format(self.name))
-                geo_maxima, geo_averages = Evaluation.evaluate(benchmarks, self.name, print_progress=False,
-                                                               additional_steps_for_max=0, max_trials_per_benchmark=10,
-                                                               max_time_per_benchmark=10)  # just for tracking progress
-                reward_progress.append(geo_averages)
-                print("Geo of averages: {0}".format(reward_progress[-1]))
-                plt.clf()
-                plt.plot(reward_progress)
-                plt.savefig("models/{0}.png".format(self.name))
+            # if log_progress and (time.time() - last_checkpoint > progress_log_rate):
+            torch.save(self.actor_critic.state_dict(), "models/{0}.model".format(self.name).format(self.name))
+                # geo_maxima, geo_averages = Evaluation.evaluate(benchmarks, self.name, print_progress=False,
+                #                                                additional_steps_for_max=0, max_trials_per_benchmark=10,
+                #                                                max_time_per_benchmark=10)  # just for tracking progress
+                # reward_progress.append(geo_averages)
+                # print("Geo of averages: {0}".format(reward_progress[-1]))
+                # plt.clf()
+                # plt.plot(reward_progress)
+                # plt.savefig("models/{0}.png".format(self.name))
 
-                last_checkpoint = time.time()
+            # last_checkpoint = time.time()
 
             self.env.switch_benchmark()
 
@@ -180,6 +205,7 @@ class PPO:
 
     def collect_trajectories(self, count):
         for _ in range(count):
+            print("Collecting trajectory {0} of {1}.".format(_ + 1, count), end="\r")
             obs = self.env.reset()
             done = False
             while not done:
@@ -188,7 +214,8 @@ class PPO:
                 new_obs, reward, done, info = self.env.step(action.item())
                 self.buffer.add_step_data(obs, action, logprob, reward, done)
                 obs = new_obs
-
+        print()
+        
     def update(self):
         # Calc Advantages
         xpctd_returns = []
@@ -236,15 +263,17 @@ class PPO:
         self.buffer.clear()
 
 
-benchmarks = []
-f = open("cbench-v1.txt", "r")
-for line in f:
-    benchmarks.append(line.strip())
-f.close()
+# benchmarks = []
+# f = open("cbench-v1.txt", "r")
+# for line in f:
+#     benchmarks.append(line.strip())
+#     break
+# f.close()
+# benchmarks = ["test.ll"]
+# env = llvm_wrapper(benchmarks, max_episode_steps=100, steps_in_observation=True)
 
-env = llvm_wrapper(benchmarks, max_episode_steps=200, steps_in_observation=True)
-
-ppo_training = PPO(env)
-ppo_training.train(log_progress=True, training_time=60 * 60 * 1000, progress_log_rate=60 * 30)
-Evaluation.evaluate(benchmarks, "default", additional_steps_for_max=500, max_trials_per_benchmark=100000,
-                    max_time_per_benchmark=60 * 1)
+# ppo_training = PPO(env)
+# ppo_training.train(log_progress=True, training_time=100, progress_log_rate=60)
+# Evaluation.evaluate(benchmarks=benchmarks, model_name="default", additional_steps_for_max=1, max_trials_per_benchmark=1,
+#                     max_time_per_benchmark=2)
+# Evaluation.eval(benchmarks[0], "default")
