@@ -1,5 +1,11 @@
-from ppo import Evaluation
-import os
+import os, time, random
+import argparse
+import pandas as pd
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--config", type=str, choices=["onnx", "compilergym"], help="Method for communication", default="onnx")
+parser.add_argument("--build_dir", type=str, help="Path to build directory")
+parser.add_argument("--ml_config_path", type=str, help="Path to ml config file")
 
 spec_06 = "/Pramana/RL4Real/POSET-RL/data/SPEC2006/"
 spec_17 = "/Pramana/RL4Real/POSET-RL/data/spec-17/"
@@ -12,15 +18,12 @@ for suite in benchmark_suites:
     if filename.endswith(".ll") and filename.startswith(""):
       file_path = benchmark_suites[suite] + filename
       file_size = os.path.getsize(file_path)
-#      if file_size < 30000000: # check if file size is less than 30MB
+    # if filename == "bzip2_linked.ll": # check if file size is less than 30MB
       benchmarks[suite].append({"filename": filename, "path": file_path, "time": [], "size": file_size})
 benchmarks.pop("spec_17")
-import pandas as pd
 
 for suite in benchmarks:
   benchmarks[suite] = sorted(benchmarks[suite], key=lambda x: x['size'])
-
-import time, random
 
 n_iters = 2
 
@@ -58,13 +61,18 @@ def run(flow_name, flow_func):
  #     exit()
     df.to_csv(csv_file_path, index=False)
 
-# for compilergym
-#run("compilergym", Evaluation.eval)
 
 # for bridge
-BUILD_DIR= "/home/cs20btech11024/repos/ml-llvm-project/build_release"
-ML_CONFIG_PATH = "/home/cs20btech11024/repos/ML-Register-Allocation/build_release/config"
-# --ml-config-path={ML_CONFIG_PATH}
-run("bridge", lambda file: os.system(f'{BUILD_DIR}/bin/opt  --codesizeopt-rl {file} > /dev/null'))
+# BUILD_DIR= "/home/cs20btech11024/repos/ml-llvm-project/build_release"
+# ML_CONFIG_PATH = "/home/cs20btech11024/repos/ML-Register-Allocation/build_release/config"
+# run("bridge", lambda file: os.system(f'{BUILD_DIR}/bin/opt  --codesizeopt-rl {file} > /dev/null'))
 
+if __name__ == "__main__":
+  args = parser.parse_args()
+  if args.config == "onnx":
+    # run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt --ml-config-path={args.ml_config_path} --codesizeopt-rl {file} > /dev/null'))
+    run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt  --codesizeopt-rl {file} > /dev/null'))
+  else:
+    from ppo import Evaluation
+    run("compilergym", Evaluation.eval)
       
