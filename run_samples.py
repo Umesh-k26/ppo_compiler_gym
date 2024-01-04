@@ -7,8 +7,8 @@ parser.add_argument("--config", type=str, choices=["onnx", "compilergym"], help=
 parser.add_argument("--build_dir", type=str, help="Path to build directory")
 parser.add_argument("--ml_config_path", type=str, help="Path to ml config file")
 
-spec_06 = "/Pramana/RL4Real/POSET-RL/data/SPEC2006/"
-spec_17 = "/Pramana/RL4Real/POSET-RL/data/spec-17/"
+spec_06 = "/home/mlbridge/POSET-RL/SPEC06/"
+spec_17 = "/home/mlbridge/POSET-RL/SPEC17/"
 
 benchmark_suites = {"spec_06": spec_06, "spec_17": spec_17}
 benchmarks = {"spec_06": [], "spec_17": []}
@@ -20,7 +20,7 @@ for suite in benchmark_suites:
       file_size = os.path.getsize(file_path)
     # if filename == "bzip2_linked.ll": # check if file size is less than 30MB
       benchmarks[suite].append({"filename": filename, "path": file_path, "time": [], "size": file_size})
-benchmarks.pop("spec_17")
+# benchmarks.pop("spec_17")
 
 for suite in benchmarks:
   benchmarks[suite] = sorted(benchmarks[suite], key=lambda x: x['size'])
@@ -70,8 +70,11 @@ def run(flow_name, flow_func):
 if __name__ == "__main__":
   args = parser.parse_args()
   if args.config == "onnx":
-    # run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt --ml-config-path={args.ml_config_path} --codesizeopt-rl {file} > /dev/null'))
-    run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt  --codesizeopt-rl {file} > /dev/null'))
+    if args.build_dir is None or args.ml_config_path is None:
+      print("Please provide build directory and ml config path")
+      exit()
+    run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt --ml-config-path={args.ml_config_path} --codesizeopt-rl {file} > /dev/null'))
+    # run("bridge", lambda file: os.system(f'{args.build_dir}/bin/opt  --codesizeopt-rl {file} > /dev/null'))
   else:
     from ppo import Evaluation
     run("compilergym", Evaluation.eval)
